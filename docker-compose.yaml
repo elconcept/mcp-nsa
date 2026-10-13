@@ -1,0 +1,26 @@
+# mcp-nsa - orzeczenia NSA/WSA (stdio z repo -> supergateway, Streamable HTTP /mcp, port 8000). Stack Portainera "mcp-nsa".
+# Bez portu na hoscie. Dostep wylacznie: https://mcp-nsa.xlap.pl/mcp - tunel cloudflared, bez Access (publiczny,
+# bezstanowy - konektory claude.ai/ChatGPT). cf_mcp_nsa: cloudflared + ten serwis, z wyjsciem do internetu.
+# Przebudowa po pushu na main: deploy-hook (.github/workflows/deploy.yml).
+services:
+  mcp-nsa:
+    build:
+      context: /volume2/docker/mcp-nsa
+      dockerfile: Dockerfile.nas
+    image: mcp-nsa:latest
+    container_name: mcp-nsa
+    user: "1029:100"
+    environment:
+      - TZ=Europe/Warsaw
+    networks:
+      - cf_mcp_nsa
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  cf_mcp_nsa:
+    external: true
