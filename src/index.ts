@@ -171,15 +171,23 @@ function stripHtml(s: string): string {
 }
 
 export function extractDocIds(html: string): string[] {
-    const re = /href="\/doc\/([A-Z0-9]+)"/g;
+    // CBOSA renders a main hit inside tr.niezaznaczona. The separate
+    // span.powiazane row carries linked rulings of other instances that are
+    // NOT search matches (and were inflating counts for case-number searches).
+    const rowPattern = /<tr\b[^>]*class="[^"]*\bniezaznaczona\b[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
     const seen = new Set<string>();
     const out: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null) {
-        if (!seen.has(m[1])) {
-            seen.add(m[1]);
-            out.push(m[1]);
+    for (const row of html.matchAll(rowPattern)) {
+        const match = row[1].match(/href="\/doc\/([A-Z0-9]{10})"/);
+        if (match && !seen.has(match[1])) {
+            seen.add(match[1]);
+            out.push(match[1]);
         }
+    }
+    // A parser change is not evidence of zero rulings. Fail visibly instead
+    // of returning documents embedded in links to related lower instances.
+    if (out.length === 0 && /href="\/doc\/([A-Z0-9]{10})"/.test(html)) {
+        throw new Error("CBOSA result-row structure changed: cannot isolate primary hits");
     }
     return out;
 }

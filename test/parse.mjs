@@ -47,9 +47,11 @@ const searchHtml = readFileSync(
 const ids = extractDocIds(searchHtml);
 const total = extractTotalResults(searchHtml);
 
-// Strona nominalnie 10 wynikow, ale CBOSA potrafi wyrenderowac kilka
-// dodatkowych wierszy (fixture z 2026-07-08 ma 12 linkow /doc/).
-check(ids.length >= 10 && ids.length <= 15, `extractDocIds: ${ids.length} (oczekiwano 10-15)`);
+// Fixture has 10 primary results and 2 related-judgment links nested in
+// separate rows. Linked judgments must NOT become primary search hits.
+check(ids.length === 10, `extractDocIds: ${ids.length} (oczekiwano 10 glownych)`);
+check(!ids.includes("87DF763F6B") && !ids.includes("52231A8EB8"),
+      "Powiazane wyroki zostaly niepoprawnie zaliczone do trafien");
 check(
     ids.every((i) => /^[A-Z0-9]{10}$/.test(i)),
     `nie-heksowe id: ${ids.join(",")}`,
