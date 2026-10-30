@@ -477,38 +477,35 @@ function formatSearchResults(args: {
     return lines.join("\n");
 }
 
-function formatJudgment(d: JudgmentDetail): string {
+export function formatJudgment(d: JudgmentDetail, offset = 0, limit = 2000) {
+    const full = d.text ?? "";
+    const totalLength = full.length;
+    const safeOffset = Math.max(0, Math.min(totalLength, Math.floor(offset)));
+    const safeLimit = Math.max(200, Math.min(20000, Math.floor(limit)));
+    const fragment = full.slice(safeOffset, safeOffset + safeLimit);
+    const nextOffset = safeOffset + fragment.length;
+    const hasMore = nextOffset < totalLength;
     const lines = [
         "=== ORZECZENIE CBOSA (NSA / WSA) ===",
         "",
         `Sygnatura  : ${d.case_number ?? "?"}`,
-        `Doc ID     : ${d.doc_id}`,
-        `Sad        : ${d.court ?? "?"}`,
+        `ID CBOSA   : ${d.doc_id}`,
+        `Sąd        : ${d.court ?? "?"}`,
         `Data       : ${d.judgment_date ?? "?"}`,
         `Typ        : ${d.decision_type ?? "?"}`,
     ];
-    if (d.judges?.length) {
-        lines.push(`Sklad      : ${d.judges.join(", ")}`);
+    if (d.judges?.length) lines.push(`Skład      : ${d.judges.join(", ")}`);
+    if (d.keywords?.length) lines.push(`Słowa kluczowe: ${d.keywords.join(", ")}`);
+    if (d.legal_bases) lines.push(`Podstawa prawna: ${d.legal_bases.slice(0, 400)}`);
+    lines.push("", `Źródło: ${BASE_URL}/doc/${d.doc_id}`);
+    if (totalLength === 0) {
+        lines.push("", "Nie udało się wyodrębnić treści orzeczenia z pobranego dokumentu. Dane metadanych nie stanowią pełnej treści orzeczenia.");
+    } else {
+        lines.push("", `--- Treść orzeczenia (znaki ${safeOffset}–${nextOffset} z ${totalLength}) ---`, fragment);
+        if (hasMore) lines.push(`Dalsza treść: get_judgment(doc_id="${d.doc_id}", offset=${nextOffset}, limit=${safeLimit}).`);
     }
-    if (d.keywords?.length) {
-        lines.push(`Slowa klucz: ${d.keywords.join(", ")}`);
-    }
-    if (d.legal_bases) {
-        lines.push(`Podst.prawna: ${d.legal_bases.slice(0, 400)}`);
-    }
-    lines.push("", `URL        : ${BASE_URL}/doc/${d.doc_id}`);
-    if (d.text) {
-        const preview = d.text.slice(0, 2000);
-        lines.push(
-            "",
-            `--- Tresc (pierwsze 2000 znakow z ${d.text.length} lacznie) ---`,
-            preview,
-        );
-        if (d.text.length > 2000) {
-            lines.push(`[...] Skrocono. Pelna tresc: ${BASE_URL}/doc/${d.doc_id}`);
-        }
-    }
-    return lines.join("\n");
+    return { text: lines.join("\n"), offset: safeOffset, returnedLength: fragment.length,
+        totalLength, hasMore, nextOffset: hasMore ? nextOffset : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -618,18 +615,19 @@ const TOOLS = [
         name: "get_judgment",
         annotations: READ_ONLY_ANNOTATIONS,
         description:
-            "Pobiera pelne orzeczenie z CBOSA po jego doc_id (10-znakowy hex). " +
-            "Zwraca metadane (sygnatura, sad, data, sklad, hasla tematyczne, " +
-            "podstawe prawna, typ orzeczenia) + pierwsze 2000 znakow tresci " +
-            "(sentencja + uzasadnienie). doc_id pochodzi z wynikow narzedzia 'search'.",
+            "Pobiera orzeczenie z CBOSA po doc_id (10-znakowy hex), metadane i bezstratny " +
+            "fragment treści. Kolejne fragmenty przez offset/limit; w structuredContent " +
+            "znajdziesz totalLength, returnedLength, hasMore i nextOffset. " +
+            "Ważne: jeśli źródło nie udostępnia treści, metadane nie są pełnym orzeczeniem.",
         inputSchema: {
             type: "object",
             properties: {
                 doc_id: {
                     type: "string",
-                    description:
-                        "10-znakowy hex doc_id z URL CBOSA, np. '7E50984BB7'.",
+                    description: "10-znakowy identyfikator z URL CBOSA, np. '7E50984BB7'.",
                 },
+                offset: { type: "number", minimum: 0, description: "Pozycja znaku od 0 (domyślnie 0)." },
+                limit: { type: "number", minimum: 200, maximum: 20000, description: "Znaki fragmentu 200–20000 (domyślnie 2000)." },
             },
             required: ["doc_id"],
         },
@@ -818,10 +816,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     );
                 }
                 const d = await nsaGetJudgment(a.doc_id);
+                const offset = typeof a.offset === "number" && Number.isFinite(a.offset) ? a.offset : 0;
+                const limit = typeof a.limit === "number" && Number.isFinite(a.limit) ? a.limit : 2000;
+                const chunk = formatJudgment(d, offset, limit);
                 return {
-                    content: [{ type: "text", text: formatJudgment(d) }],
+                    content: [{ type: "text", text: chunk.text }],
                     structuredContent: {
                         citations: [buildDetailCitation(d)],
+                        totalLength: chunk.totalLength,
+                        returnedLength: chunk.returnedLength,
+                        offset: chunk.offset,
+                        hasMore: chunk.hasMore,
+                        nextOffset: chunk.nextOffset,
                     },
                 };
             }
