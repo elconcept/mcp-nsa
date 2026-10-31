@@ -52,6 +52,25 @@ for (let i = 0; i < 100 && offset < (d.text ?? "").length; i++) {
 check(parts.join("") === d.text, "Fragmenty NSA nie odtwarzają pełnej treści");
 check(formatJudgment(d, 0, 1000).hasMore === true, "Brak informacji o dalszej części");
 
+
+// --- Unicode: offsety zgodne z Python len(str), nie JS UTF-16 units ------
+const unicodeText = "Sąd 🧑‍⚖️ rozpoznał sprawę. ".repeat(300);
+const unicodeCase = { ...d, text: unicodeText };
+const unicodeCodePoints = Array.from(unicodeText);
+let unicodeOffset = 0;
+const unicodeParts = [];
+for (let i = 0; i < 100 && unicodeOffset < unicodeCodePoints.length; i++) {
+    const chunk = formatJudgment(unicodeCase, unicodeOffset, 200);
+    check(chunk.returnedLength === Array.from(chunk.fragment).length,
+          "Unicode: returnedLength nie zgadza się z liczbą punktów kodowych");
+    unicodeParts.push(chunk.fragment);
+    unicodeOffset = chunk.nextOffset ?? unicodeCodePoints.length;
+}
+check(unicodeParts.join("") === unicodeText,
+      "Unicode: fragmenty przecinają sekwencję UTF-16 i nie odtwarzają treści");
+check(formatJudgment(unicodeCase, 0, 200).totalLength === unicodeCodePoints.length,
+      "Unicode: totalLength ma liczyć punkty kodowe, jak Python len()");
+
 // --- fixture 2: lista wynikow ---------------------------------------------
 const searchHtml = readFileSync(
     join(__dirname, "fixtures", "search-results.html"),
