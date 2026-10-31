@@ -479,11 +479,16 @@ function formatSearchResults(args: {
 
 export function formatJudgment(d: JudgmentDetail, offset = 0, limit = 2000) {
     const full = d.text ?? "";
-    const totalLength = full.length;
+    // Python resolver/cache mierzy po punktach kodowych Unicode (len(str)).
+    // JS String.slice/length liczy jednostki UTF-16 i przecina np. emoji
+    // na pół; Array.from gwarantuje zgodne, bezstratne offsety po znakach.
+    const codepoints = Array.from(full);
+    const totalLength = codepoints.length;
     const safeOffset = Math.max(0, Math.min(totalLength, Math.floor(offset)));
     const safeLimit = Math.max(200, Math.min(20000, Math.floor(limit)));
-    const fragment = full.slice(safeOffset, safeOffset + safeLimit);
-    const nextOffset = safeOffset + fragment.length;
+    const selected = codepoints.slice(safeOffset, safeOffset + safeLimit);
+    const fragment = selected.join("");
+    const nextOffset = safeOffset + selected.length;
     const hasMore = nextOffset < totalLength;
     const lines = [
         "=== ORZECZENIE CBOSA (NSA / WSA) ===",
