@@ -509,7 +509,7 @@ export function formatJudgment(d: JudgmentDetail, offset = 0, limit = 2000) {
         lines.push("", `--- Treść orzeczenia (znaki ${safeOffset}–${nextOffset} z ${totalLength}) ---`, fragment);
         if (hasMore) lines.push(`Dalsza treść: get_judgment(doc_id="${d.doc_id}", offset=${nextOffset}, limit=${safeLimit}).`);
     }
-    return { text: lines.join("\n"), fragment, offset: safeOffset, returnedLength: fragment.length,
+    return { text: lines.join("\n"), fragment, offset: safeOffset, returnedLength: selected.length,
         totalLength, hasMore, nextOffset: hasMore ? nextOffset : null };
 }
 
