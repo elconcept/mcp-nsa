@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const { parseJudgmentHtml, extractDocIds, extractTotalResults } = require(
+const { parseJudgmentHtml, extractDocIds, extractTotalResults, formatJudgment } = require(
     join(__dirname, "..", "dist", "index.js"),
 );
 
@@ -38,6 +38,38 @@ check(
     (d.text ?? "").includes("---"),
     "text nie zawiera separatora sentencja/uzasadnienie",
 );
+
+// Sprawdź bezstratną rekonstrukcję uzasadnienia z kolejnych fragmentów.
+const parts = [];
+let offset = 0;
+for (let i = 0; i < 100 && offset < (d.text ?? "").length; i++) {
+    const p = formatJudgment(d, offset, 1000);
+    check(p.offset === offset, `chunk offset: ${p.offset} / ${offset}`);
+    check(p.returnedLength === p.fragment.length, "returnedLength różny od długości fragmentu");
+    parts.push(p.fragment);
+    offset = p.nextOffset ?? (d.text ?? "").length;
+}
+check(parts.join("") === d.text, "Fragmenty NSA nie odtwarzają pełnej treści");
+check(formatJudgment(d, 0, 1000).hasMore === true, "Brak informacji o dalszej części");
+
+
+// --- Unicode: offsety zgodne z Python len(str), nie JS UTF-16 units ------
+const unicodeText = "Sąd 🧑‍⚖️ rozpoznał sprawę. ".repeat(300);
+const unicodeCase = { ...d, text: unicodeText };
+const unicodeCodePoints = Array.from(unicodeText);
+let unicodeOffset = 0;
+const unicodeParts = [];
+for (let i = 0; i < 100 && unicodeOffset < unicodeCodePoints.length; i++) {
+    const chunk = formatJudgment(unicodeCase, unicodeOffset, 200);
+    check(chunk.returnedLength === Array.from(chunk.fragment).length,
+          "Unicode: returnedLength nie zgadza się z liczbą punktów kodowych");
+    unicodeParts.push(chunk.fragment);
+    unicodeOffset = chunk.nextOffset ?? unicodeCodePoints.length;
+}
+check(unicodeParts.join("") === unicodeText,
+      "Unicode: fragmenty przecinają sekwencję UTF-16 i nie odtwarzają treści");
+check(formatJudgment(unicodeCase, 0, 200).totalLength === unicodeCodePoints.length,
+      "Unicode: totalLength ma liczyć punkty kodowe, jak Python len()");
 
 // --- fixture 2: lista wynikow ---------------------------------------------
 const searchHtml = readFileSync(

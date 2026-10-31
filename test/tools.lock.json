@@ -1,9 +1,9 @@
 {
-  "package_version": "1.3.0",
-  "toolset_sha256": "d4a3a5122c5fd0c57f41a84a840be670b0147880c0fec421adae841b693a36b9",
+  "package_version": "1.3.1",
+  "toolset_sha256": "c9c56fe9e7a674420bf617c16a81ea3da21186d93ec334d30cc0bb67c8dcac6c",
   "tools": {
     "get_judgment": {
-      "sha256": "019c9089b1a063bc6112497555d425d219480419b28b2b55a4d0dc55968d866e",
+      "sha256": "3c9782b24ce9fc3c86c8deb8320ee69066f1b83b1d56cfd6a886d13000d94b09",
       "descriptor": {
         "annotations": {
           "destructiveHint": false,
@@ -11,12 +11,23 @@
           "openWorldHint": true,
           "readOnlyHint": true
         },
-        "description": "Pobiera pelne orzeczenie z CBOSA po jego doc_id (10-znakowy hex). Zwraca metadane (sygnatura, sad, data, sklad, hasla tematyczne, podstawe prawna, typ orzeczenia) + pierwsze 2000 znakow tresci (sentencja + uzasadnienie). doc_id pochodzi z wynikow narzedzia 'search'.",
+        "description": "Pobiera orzeczenie z CBOSA po doc_id (10-znakowy hex), metadane i bezstratny fragment treści. Kolejne fragmenty przez offset/limit; w structuredContent znajdziesz totalLength, returnedLength, hasMore i nextOffset. Ważne: jeśli źródło nie udostępnia treści, metadane nie są pełnym orzeczeniem.",
         "inputSchema": {
           "properties": {
             "doc_id": {
-              "description": "10-znakowy hex doc_id z URL CBOSA, np. '7E50984BB7'.",
+              "description": "10-znakowy identyfikator z URL CBOSA, np. '7E50984BB7'.",
               "type": "string"
+            },
+            "offset": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Pozycja znaku od 0 (domyślnie 0)."
+            },
+            "limit": {
+              "type": "number",
+              "minimum": 200,
+              "maximum": 20000,
+              "description": "Znaki fragmentu 200–20000 (domyślnie 2000)."
             }
           },
           "required": [
